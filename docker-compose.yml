@@ -12,12 +12,19 @@ services:
       - mysql_data:/var/lib/mysql
     networks:
       - appgestion-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uspringuser", "-pspringpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   backend:
     image: mehdiboughdiri/appgestion-backend:latest
     container_name: appgestion-backend
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     environment:
       DB_URL: jdbc:mysql://mysql:3306/test_db?createDatabaseIfNotExist=true
       DB_USERNAME: springuser
