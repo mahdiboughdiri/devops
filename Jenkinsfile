@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     options {
-        timeout(time: 15, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
     }
 
     stages {
@@ -60,35 +60,43 @@ pipeline {
                 }
             }
         }
-    }
-stage('Docker Build') {
-    steps {
-        sh 'docker build -t mehdiboughdiri/appgestion-backend:latest ./backend'
-        sh 'docker build -t mehdiboughdiri/appgestion-frontend:latest ./frontend'
-    }
-}
 
-stage('Docker Push') {
-    steps {
-        withCredentials([usernamePassword(
-            credentialsId: 'dockerhub-credentials',
-            usernameVariable: 'DOCKER_USERNAME',
-            passwordVariable: 'DOCKER_PASSWORD'
-        )]) {
-            sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
-            sh 'docker push mehdiboughdiri/appgestion-backend:latest'
-            sh 'docker push mehdiboughdiri/appgestion-frontend:latest'
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -t mehdiboughdiri/appgestion-backend:latest ./backend'
+                sh 'docker build -t mehdiboughdiri/appgestion-frontend:latest ./frontend'
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )]) {
+                    sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+                    sh 'docker push mehdiboughdiri/appgestion-backend:latest'
+                    sh 'docker push mehdiboughdiri/appgestion-frontend:latest'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh 'docker compose pull'
+                sh 'docker compose up -d'
+            }
         }
     }
-}
 
     post {
         success {
-            echo '✅ Pipeline CI terminé avec succès !'
+            echo '✅ Pipeline CI/CD terminé avec succès !'
         }
 
         failure {
-            echo '❌ Pipeline CI échoué.'
+            echo '❌ Pipeline CI/CD échoué.'
         }
 
         always {
