@@ -61,6 +61,26 @@ pipeline {
             }
         }
     }
+stage('Docker Build') {
+    steps {
+        sh 'docker build -t mehdiboughdiri/appgestion-backend:latest ./backend'
+        sh 'docker build -t mehdiboughdiri/appgestion-frontend:latest ./frontend'
+    }
+}
+
+stage('Docker Push') {
+    steps {
+        withCredentials([usernamePassword(
+            credentialsId: 'dockerhub-credentials',
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )]) {
+            sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+            sh 'docker push mehdiboughdiri/appgestion-backend:latest'
+            sh 'docker push mehdiboughdiri/appgestion-frontend:latest'
+        }
+    }
+}
 
     post {
         success {

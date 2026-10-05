@@ -1,0 +1,44 @@
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: appgestion-mysql
+    environment:
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: springuser
+      MYSQL_PASSWORD: springpass
+      MYSQL_ROOT_PASSWORD: rootpass
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - appgestion-network
+
+  backend:
+    image: mehdiboughdiri/appgestion-backend:latest
+    container_name: appgestion-backend
+    depends_on:
+      - mysql
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/test_db?createDatabaseIfNotExist=true
+      DB_USERNAME: springuser
+      DB_PASSWORD: springpass
+    ports:
+      - "8081:8081"
+    networks:
+      - appgestion-network
+
+  frontend:
+    image: mehdiboughdiri/appgestion-frontend:latest
+    container_name: appgestion-frontend
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
+    networks:
+      - appgestion-network
+
+networks:
+  appgestion-network:
+
+volumes:
+  mysql_data:
