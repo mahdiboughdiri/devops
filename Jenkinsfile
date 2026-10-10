@@ -22,28 +22,40 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
-            steps {
-                dir('backend') {
-                    sh 'mvn test'
-                }
-            }
-            post {
-                always {
-                    junit 'backend/target/surefire-reports/*.xml'
-                }
-            }
+        
+stage('Unit Tests & JaCoCo') {
+    steps {
+        dir('backend') {
+            sh 'mvn test jacoco:report'
         }
+    }
+    post {
+        always {
+            junit allowEmptyResults: true,
+                  testResults: 'backend/target/surefire-reports/*.xml'
 
-        stage('SonarQube Analysis') {
-            steps {
-                dir('backend') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
-                    }
-                }
+            archiveArtifacts(
+                artifacts: 'backend/target/site/jacoco/**',
+                allowEmptyArchive: true
+            )
+        }
+    }
+}
+
+        
+stage('SonarQube Analysis') {
+    steps {
+        dir('backend') {
+            withSonarQubeEnv('SonarQube') {
+                sh '''
+                    mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                '''
             }
         }
+    }
+}
+
 
         stage('Quality Gate') {
             steps {
