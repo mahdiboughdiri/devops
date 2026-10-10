@@ -92,35 +92,38 @@ pipeline {
             }
         }
 
-        stage('Docker Push') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
-                    try {
-                        sh '''
-                            set +x
-                            echo "$DOCKER_PASSWORD" |
-                                docker login \
-                                    -u "$DOCKER_USERNAME" \
-                                    --password-stdin
+        
+stage('Docker Push') {
+    steps {
+        script {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )
+            ]) {
+                try {
+                    sh '''
+                        set +x
 
-                            docker push ${BACKEND_IMAGE}:build-${BUILD_NUMBER}
-                            docker push ${FRONTEND_IMAGE}:build-${BUILD_NUMBER}
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            -u "$DOCKER_USERNAME" \
+                            --password-stdin
 
-                            docker push ${BACKEND_IMAGE}:latest
-                            docker push ${FRONTEND_IMAGE}:latest
-                        '''
-                    } finally {
-                        sh 'docker logout || true'
-                    }
+                        docker push ${BACKEND_IMAGE}:build-${BUILD_NUMBER}
+                        docker push ${FRONTEND_IMAGE}:build-${BUILD_NUMBER}
+
+                        docker push ${BACKEND_IMAGE}:latest
+                        docker push ${FRONTEND_IMAGE}:latest
+                    '''
+                } finally {
+                    sh 'docker logout || true'
                 }
             }
         }
+    }
+}
 
         stage('Deploy') {
             steps {
