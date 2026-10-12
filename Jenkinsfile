@@ -3,7 +3,7 @@ pipeline {
     agent any
 
     options {
-        timeout(time: 20, unit: 'MINUTES')
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     environment {
@@ -92,54 +92,103 @@ pipeline {
             }
         }
 
-        
-stage('Docker Push') {
-    steps {
-        script {
-            withCredentials([
-                usernamePassword(
-                    credentialsId: 'dockerhub-credentials',
-                    usernameVariable: 'DOCKER_USERNAME',
-                    passwordVariable: 'DOCKER_PASSWORD'
-                )
-            ]) {
-                try {
-                    sh '''
-                        set +x
+        stage('Docker Push') {
+            steps {
+                script {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'dockerhub-credentials',
+                            usernameVariable: 'DOCKER_USERNAME',
+                            passwordVariable: 'DOCKER_PASSWORD'
+                        )
+                    ]) {
+                        try {
+                            sh '''
+                                set +x
 
-                        echo "$DOCKER_PASSWORD" | docker login \
-                            -u "$DOCKER_USERNAME" \
-                            --password-stdin
+                                echo "$DOCKER_PASSWORD" | docker login \
+                                    -u "$DOCKER_USERNAME" \
+                                    --password-stdin
 
-                        docker push ${BACKEND_IMAGE}:build-${BUILD_NUMBER}
-                        docker push ${FRONTEND_IMAGE}:build-${BUILD_NUMBER}
+                                docker push ${BACKEND_IMAGE}:build-${BUILD_NUMBER}
+                                docker push ${FRONTEND_IMAGE}:build-${BUILD_NUMBER}
 
-                        docker push ${BACKEND_IMAGE}:latest
-                        docker push ${FRONTEND_IMAGE}:latest
-                    '''
-                } finally {
-                    sh 'docker logout || true'
+                                docker push ${BACKEND_IMAGE}:latest
+                                docker push ${FRONTEND_IMAGE}:latest
+                            '''
+                        } finally {
+                            sh 'docker logout || true'
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
-        stage('Deploy') {
+        stage('Deploy Kubernetes') {
             steps {
-                sh 'docker compose pull'
-                sh 'docker compose up -d'
+                withCredentials([
+                    file(
+                        credentialsId: 'kubeconfig-credentials',
+                        variable: 'KUBECONFIG'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+
+                        echo "=== Vérification de kubectl ==="
+                        kubectl version --client
+
+                        echo "=== Vérification de la connexion au cluster ==="
+                        kubectl get nodes
+
+                        echo "=== Validation des manifests ==="
+                        kubectl apply --dry-run=client \
+                            -f k8s/appgestion.yaml
+
+                        echo "=== Application des ressources Kubernetes ==="
+                        kubectl apply -f k8s/appgestion.yaml
+
+                        echo "=== Mise à jour de l'image Backend ==="
+                        kubectl set image deployment/backend \
+                            backend=${BACKEND_IMAGE}:build-${BUILD_NUMBER}
+
+                        echo "=== Mise à jour de l'image Frontend ==="
+                        kubectl set image deployment/frontend \
+                            frontend=${FRONTEND_IMAGE}:build-${BUILD_NUMBER}
+
+                        echo "=== Attente du déploiement MySQL ==="
+                        kubectl rollout status deployment/mysql \
+                            --timeout=180s
+
+                        echo "=== Attente du déploiement Backend ==="
+                        kubectl rollout status deployment/backend \
+                            --timeout=180s
+
+                        echo "=== Attente du déploiement Frontend ==="
+                        kubectl rollout status deployment/frontend \
+                            --timeout=180s
+
+                        echo "=== Pods Kubernetes ==="
+                        kubectl get pods
+
+                        echo "=== Services Kubernetes ==="
+                        kubectl get services
+
+                        echo "=== PVC Kubernetes ==="
+                        kubectl get pvc
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Pipeline CI/CD terminé avec succès !'
+            echo 'Pipeline CI/CD terminé avec succès ! Déploiement Kubernetes effectué.'
         }
 
         failure {
-            echo '❌ Pipeline CI/CD échoué.'
+            echo 'Pipeline CI/CD échoué. Vérifier les logs Jenkins et Kubernetes.'
         }
 
         always {
